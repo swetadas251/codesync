@@ -105,36 +105,18 @@ export default function Home() {
           margin: '0 auto',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(99,102,241,0.3)',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-            </svg>
-          </div>
-          <span
-            style={{
-              fontSize: '20px',
-              fontWeight: 700,
-              letterSpacing: '-0.02em',
-              background: 'linear-gradient(to right, #fff, rgba(255,255,255,0.6))',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            CodeSync
-          </span>
-        </div>
+        <span
+          style={{
+            fontSize: '20px',
+            fontWeight: 700,
+            letterSpacing: '-0.02em',
+            background: 'linear-gradient(to right, #fff, rgba(255,255,255,0.6))',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          CodeSync
+        </span>
       </nav>
 
       {/* ── Hero section ── */}
@@ -548,41 +530,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Floating tags */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '-12px',
-              right: '-12px',
-              padding: '8px 14px',
-              background: '#1a1a28',
-              borderRadius: '10px',
-              border: '1px solid rgba(255,255,255,0.06)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-              fontSize: '13px',
-              zIndex: 2,
-              animation: 'float 4s ease-in-out infinite',
-            }}
-          >
-            👥 Live collaboration
-          </div>
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '-12px',
-              left: '-12px',
-              padding: '8px 14px',
-              background: '#1a1a28',
-              borderRadius: '10px',
-              border: '1px solid rgba(255,255,255,0.06)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-              fontSize: '13px',
-              zIndex: 2,
-              animation: 'float 4s ease-in-out infinite 2s',
-            }}
-          >
-            ⚡ Instant sync
-          </div>
+
         </div>
       </div>
 
@@ -605,19 +553,16 @@ export default function Home() {
         >
           {[
             {
-              icon: '⚡',
               title: 'Real-time Sync',
               description: 'See changes instantly as your team types. No delays, no conflicts.',
               accent: '#f59e0b',
             },
             {
-              icon: '👥',
               title: 'Live Cursors',
               description: 'See where everyone is editing with colored cursors and presence indicators.',
               accent: '#818cf8',
             },
             {
-              icon: '🧩',
               title: '12+ Languages',
               description: 'Full syntax highlighting for JavaScript, Python, Go, Rust, and more.',
               accent: '#f472b6',
@@ -630,35 +575,23 @@ export default function Home() {
                 borderRadius: '16px',
                 background: 'rgba(255,255,255,0.02)',
                 border: '1px solid rgba(255,255,255,0.04)',
+                borderTop: `2px solid ${feature.accent}40`,
                 transition: 'all 0.3s ease',
                 cursor: 'default',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.borderTopColor = feature.accent;
                 e.currentTarget.style.transform = 'translateY(-4px)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)';
+                e.currentTarget.style.borderTopColor = `${feature.accent}40`;
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
-              <div
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '12px',
-                  background: `${feature.accent}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '20px',
-                  marginBottom: '20px',
-                }}
-              >
-                {feature.icon}
-              </div>
               <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '10px', letterSpacing: '-0.01em' }}>
                 {feature.title}
               </h3>
@@ -738,10 +671,7 @@ export default function Home() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0; }
         }
-        @keyframes float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-8px); }
-        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         ::placeholder { color: rgba(255,255,255,0.25); }
         @media (max-width: 1024px) {
