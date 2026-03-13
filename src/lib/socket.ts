@@ -1,7 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-// Backend URL - change this when you deploy
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://codesync-backend-nqm5.onrender.com';
 
 let socket: Socket | null = null;
 
