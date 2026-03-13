@@ -1,214 +1,258 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
+import { getSocket } from '@/lib/socket';
 import type { editor } from 'monaco-editor';
 
-interface CodeEditorProps {
-  code: string;
-  language: string;
-  onChange: (value: string) => void;
+interface User {
+  id: string;
+  name: string;
+  color: string;
+  cursor: { line: number; column: number } | null;
 }
 
-export default function CodeEditor({ code, language, onChange }: CodeEditorProps) {
+interface CodeEditorProps {
+  roomId: string;
+}
+
+const LANGUAGES = [
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'typescript', label: 'TypeScript' },
+  { value: 'python', label: 'Python' },
+  { value: 'java', label: 'Java' },
+  { value: 'cpp', label: 'C++' },
+  { value: 'csharp', label: 'C#' },
+  { value: 'go', label: 'Go' },
+  { value: 'rust', label: 'Rust' },
+  { value: 'html', label: 'HTML' },
+  { value: 'css', label: 'CSS' },
+  { value: 'json', label: 'JSON' },
+  { value: 'markdown', label: 'Markdown' },
+];
+
+export default function CodeEditor({ roomId }: CodeEditorProps) {
+  const [code, setCode] = useState('// Loading...\n');
+  const [language, setLanguage] = useState('javascript');
+  const [users, setUsers] = useState<User[]>([]);
+  const [connected, setConnected] = useState(false);
+  const [copied, setCopied] = useState(false);
+  
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-  const isSettingValue = useRef(false);
-  const onChangeRef = useRef(onChange);
+  const isRemoteChange = useRef(false);
+  const decorationsRef = useRef<string[]>([]);
 
-  // Keep onChange ref current without re-triggering effects
   useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
+    const socket = getSocket();
 
-  const handleMount: OnMount = (editorInstance, monaco) => {
-    editorRef.current = editorInstance;
-
-    // Define custom dark theme
-    monaco.editor.defineTheme('codesync-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
-        { token: 'keyword', foreground: 'c678dd' },
-        { token: 'string', foreground: '98c379' },
-        { token: 'number', foreground: 'd19a66' },
-        { token: 'type', foreground: 'e5c07b' },
-        { token: 'function', foreground: '61afef' },
-        { token: 'variable', foreground: 'e06c75' },
-        { token: 'constant', foreground: 'd19a66' },
-        { token: 'operator', foreground: '56b6c2' },
-        { token: 'delimiter', foreground: 'abb2bf' },
-        { token: 'tag', foreground: 'e06c75' },
-        { token: 'attribute.name', foreground: 'd19a66' },
-        { token: 'attribute.value', foreground: '98c379' },
-        { token: 'metatag', foreground: 'e06c75' },
-      ],
-      colors: {
-        'editor.background': '#0a0a12',
-        'editor.foreground': '#abb2bf',
-        'editor.lineHighlightBackground': '#ffffff06',
-        'editor.selectionBackground': '#6366f133',
-        'editor.inactiveSelectionBackground': '#6366f11a',
-        'editorLineNumber.foreground': '#ffffff18',
-        'editorLineNumber.activeForeground': '#ffffff40',
-        'editorCursor.foreground': '#6366f1',
-        'editorWhitespace.foreground': '#ffffff0d',
-        'editorIndentGuide.background': '#ffffff08',
-        'editorIndentGuide.activeBackground': '#ffffff15',
-        'editor.selectionHighlightBackground': '#6366f11a',
-        'editorBracketMatch.background': '#6366f120',
-        'editorBracketMatch.border': '#6366f140',
-        'editorGutter.background': '#0a0a12',
-        'editorWidget.background': '#16162a',
-        'editorWidget.border': '#ffffff10',
-        'editorSuggestWidget.background': '#16162a',
-        'editorSuggestWidget.border': '#ffffff10',
-        'editorSuggestWidget.selectedBackground': '#6366f120',
-        'editorHoverWidget.background': '#16162a',
-        'editorHoverWidget.border': '#ffffff10',
-        'scrollbar.shadow': '#00000000',
-        'scrollbarSlider.background': '#ffffff10',
-        'scrollbarSlider.hoverBackground': '#ffffff18',
-        'scrollbarSlider.activeBackground': '#ffffff20',
-        'minimap.background': '#0a0a12',
-      },
+    socket.on('connect', () => {
+      setConnected(true);
+      socket.emit('join-room', roomId);
     });
 
-    monaco.editor.setTheme('codesync-dark');
-
-    // Listen for LOCAL edits only — skip when we're applying remote changes
-    editorInstance.onDidChangeModelContent(() => {
-      if (isSettingValue.current) return;
-      const currentValue = editorInstance.getValue();
-      onChangeRef.current(currentValue);
+    socket.on('disconnect', () => {
+      setConnected(false);
     });
 
-    editorInstance.focus();
+    socket.on('room-state', (state: { code: string; language: string; users: User[] }) => {
+      isRemoteChange.current = true;
+      setCode(state.code);
+      setLanguage(state.language);
+      setUsers(state.users);
+      isRemoteChange.current = false;
+    });
+
+    socket.on('code-change', (newCode: string) => {
+      isRemoteChange.current = true;
+      setCode(newCode);
+      isRemoteChange.current = false;
+    });
+
+    socket.on('language-change', (newLanguage: string) => {
+      setLanguage(newLanguage);
+    });
+
+    socket.on('user-joined', (user: User) => {
+      setUsers(prev => [...prev, user]);
+    });
+
+    socket.on('user-left', (userId: string) => {
+      setUsers(prev => prev.filter(u => u.id !== userId));
+    });
+
+    socket.on('cursor-move', ({ id, cursor }: { id: string; cursor: { line: number; column: number } }) => {
+      setUsers(prev => prev.map(u => 
+        u.id === id ? { ...u, cursor } : u
+      ));
+    });
+
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      setConnected(true);
+      socket.emit('join-room', roomId);
+    }
+
+    return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('room-state');
+      socket.off('code-change');
+      socket.off('language-change');
+      socket.off('user-joined');
+      socket.off('user-left');
+      socket.off('cursor-move');
+    };
+  }, [roomId]);
+
+  useEffect(() => {
+    if (!editorRef.current) return;
+    const ed = editorRef.current;
+    const model = ed.getModel();
+    if (!model) return;
+
+    decorationsRef.current = ed.deltaDecorations(decorationsRef.current, []);
+    const socket = getSocket();
+    const newDecorations: editor.IModelDeltaDecoration[] = [];
+
+    users.forEach(user => {
+      if (user.id === socket.id || !user.cursor) return;
+      newDecorations.push({
+        range: {
+          startLineNumber: user.cursor.line,
+          startColumn: user.cursor.column,
+          endLineNumber: user.cursor.line,
+          endColumn: user.cursor.column + 1,
+        },
+        options: {
+          className: 'remote-cursor',
+          beforeContentClassName: 'remote-cursor-line',
+          hoverMessage: { value: user.name },
+          stickiness: 1,
+        },
+      });
+    });
+
+    decorationsRef.current = ed.deltaDecorations([], newDecorations);
+  }, [users]);
+
+  const handleEditorMount: OnMount = (editor) => {
+    editorRef.current = editor;
+    editor.onDidChangeCursorPosition((e) => {
+      const socket = getSocket();
+      socket.emit('cursor-move', {
+        line: e.position.lineNumber,
+        column: e.position.column,
+      });
+    });
   };
 
-  // Apply remote code changes safely
-  useEffect(() => {
-    const editorInstance = editorRef.current;
-    if (!editorInstance) return;
+  const handleCodeChange = (value: string | undefined) => {
+    if (isRemoteChange.current || !value) return;
+    setCode(value);
+    const socket = getSocket();
+    socket.emit('code-change', value);
+  };
 
-    const currentValue = editorInstance.getValue();
-    if (currentValue === code) return;
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newLanguage = e.target.value;
+    setLanguage(newLanguage);
+    const socket = getSocket();
+    socket.emit('language-change', newLanguage);
+  };
 
-    const position = editorInstance.getPosition();
-    const selections = editorInstance.getSelections();
-
-    // Guard: prevent onDidChangeModelContent from firing onChange
-    isSettingValue.current = true;
-    editorInstance.setValue(code);
-    isSettingValue.current = false;
-
-    if (position) editorInstance.setPosition(position);
-    if (selections && selections.length > 0) editorInstance.setSelections(selections);
-  }, [code]);
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div style={{ height: '100%', width: '100%' }}>
-      <Editor
-        height="100%"
-        language={language}
-        defaultValue={code}
-        onMount={handleMount}
-        loading={
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              background: '#0a0a12',
-              color: 'rgba(255,255,255,0.3)',
-              fontSize: '14px',
-              fontFamily: "'Geist', sans-serif",
-              gap: '10px',
-            }}
+    <div className="flex flex-col h-screen bg-gray-900">
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-bold text-white">CodeSync</h1>
+          
+          <select
+            value={language}
+            onChange={handleLanguageChange}
+            className="px-3 py-1.5 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:border-blue-500"
           >
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                border: '2px solid rgba(99,102,241,0.3)',
-                borderTopColor: '#6366f1',
-                borderRadius: '50%',
-                animation: 'spin 0.6s linear infinite',
-              }}
-            />
-            Loading editor...
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            {LANGUAGES.map(lang => (
+              <option key={lang.value} value={lang.value}>
+                {lang.label}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-sm text-gray-400">
+              {connected ? 'Connected' : 'Disconnected'}
+            </span>
           </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">In room:</span>
+            <div className="flex -space-x-2">
+              {users.map(user => (
+                <div
+                  key={user.id}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium border-2 border-gray-800"
+                  style={{ backgroundColor: user.color }}
+                  title={user.name}
+                >
+                  {user.name.charAt(0)}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={copyLink}
+            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+          >
+            {copied ? '✓ Copied!' : 'Copy Link'}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1">
+        <Editor
+          height="100%"
+          language={language}
+          value={code}
+          onChange={handleCodeChange}
+          onMount={handleEditorMount}
+          theme="vs-dark"
+          options={{
+            fontSize: 14,
+            fontFamily: 'JetBrains Mono, Fira Code, monospace',
+            minimap: { enabled: true },
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            tabSize: 2,
+            wordWrap: 'on',
+            lineNumbers: 'on',
+            renderLineHighlight: 'all',
+            cursorBlinking: 'smooth',
+            cursorSmoothCaretAnimation: 'on',
+          }}
+        />
+      </div>
+
+      <style jsx global>{`
+        .remote-cursor {
+          background-color: rgba(255, 107, 107, 0.3);
+          border-left: 2px solid #FF6B6B;
         }
-        options={{
-          fontSize: 14,
-          fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Menlo, monospace",
-          fontLigatures: true,
-          lineHeight: 24,
-          letterSpacing: 0.3,
-          padding: { top: 16, bottom: 16 },
-          minimap: {
-            enabled: true,
-            side: 'right',
-            size: 'proportional',
-            maxColumn: 80,
-            renderCharacters: false,
-            scale: 1,
-          },
-          scrollBeyondLastLine: true,
-          smoothScrolling: true,
-          cursorBlinking: 'smooth',
-          cursorSmoothCaretAnimation: 'on',
-          cursorStyle: 'line',
-          cursorWidth: 2,
-          renderLineHighlight: 'line',
-          renderLineHighlightOnlyWhenFocus: false,
-          roundedSelection: true,
-          selectOnLineNumbers: true,
-          wordWrap: 'off',
-          automaticLayout: true,
-          tabSize: 2,
-          insertSpaces: true,
-          formatOnPaste: true,
-          formatOnType: false,
-          suggest: {
-            showKeywords: true,
-            showSnippets: true,
-            showFunctions: true,
-            showVariables: true,
-            showClasses: true,
-          },
-          bracketPairColorization: {
-            enabled: true,
-            independentColorPoolPerBracketType: true,
-          },
-          guides: {
-            bracketPairs: true,
-            indentation: true,
-            highlightActiveIndentation: true,
-          },
-          scrollbar: {
-            vertical: 'auto',
-            horizontal: 'auto',
-            verticalScrollbarSize: 8,
-            horizontalScrollbarSize: 8,
-            verticalSliderSize: 8,
-            horizontalSliderSize: 8,
-            useShadows: false,
-          },
-          overviewRulerBorder: false,
-          overviewRulerLanes: 0,
-          hideCursorInOverviewRuler: true,
-          folding: true,
-          foldingHighlight: false,
-          showFoldingControls: 'mouseover',
-          matchBrackets: 'always',
-          occurrencesHighlight: 'singleFile',
-          renderWhitespace: 'none',
-          contextmenu: true,
-        }}
-      />
+        .remote-cursor-line {
+          border-left: 2px solid #FF6B6B;
+          margin-left: -2px;
+        }
+      `}</style>
     </div>
   );
 }
