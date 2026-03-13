@@ -29,7 +29,6 @@ export default function RoomPage() {
   const [connected, setConnected] = useState(false);
   const [copied, setCopied] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
-  const isRemoteChange = useRef(false);
   const langRef = useRef<HTMLDivElement>(null);
 
   // Close lang dropdown on outside click
@@ -62,7 +61,6 @@ export default function RoomPage() {
     });
 
     socket.on('code-update', (newCode: string) => {
-      isRemoteChange.current = true;
       setCode(newCode);
     });
 
@@ -80,10 +78,6 @@ export default function RoomPage() {
   }, [roomId]);
 
   const handleCodeChange = (newCode: string) => {
-    if (isRemoteChange.current) {
-      isRemoteChange.current = false;
-      return;
-    }
     setCode(newCode);
     socketRef.current?.emit('code-change', { roomId, code: newCode });
   };
