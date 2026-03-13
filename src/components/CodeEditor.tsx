@@ -12,11 +12,18 @@ interface CodeEditorProps {
 
 export default function CodeEditor({ code, language, onChange }: CodeEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const isSettingValue = useRef(false);
+  const onChangeRef = useRef(onChange);
 
-  const handleMount: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
+  // Keep onChange ref current without re-triggering effects
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
-    // Define a custom dark theme inspired by Catppuccin/One Dark
+  const handleMount: OnMount = (editorInstance, monaco) => {
+    editorRef.current = editorInstance;
+
+    // Define custom dark theme
     monaco.editor.defineTheme('codesync-dark', {
       base: 'vs-dark',
       inherit: true,
@@ -69,20 +76,34 @@ export default function CodeEditor({ code, language, onChange }: CodeEditorProps
 
     monaco.editor.setTheme('codesync-dark');
 
-    // Focus the editor
-    editor.focus();
+    // Listen for LOCAL edits only — skip when we're applying remote changes
+    editorInstance.onDidChangeModelContent(() => {
+      if (isSettingValue.current) return;
+      const currentValue = editorInstance.getValue();
+      onChangeRef.current(currentValue);
+    });
+
+    editorInstance.focus();
   };
 
-  // Sync code from outside (e.g. remote changes)
+  // Apply remote code changes safely
   useEffect(() => {
-    const editor = editorRef.current;
-    if (editor && editor.getValue() !== code) {
-      const position = editor.getPosition();
-      editor.setValue(code);
-      if (position) {
-        editor.setPosition(position);
-      }
-    }
+    const editorInstance = editorRef.current;
+    if (!editorInstance) return;
+
+    const currentValue = editorInstance.getValue();
+    if (currentValue === code) return;
+
+    const position = editorInstance.getPosition();
+    const selections = editorInstance.getSelections();
+
+    // Guard: prevent onDidChangeModelContent from firing onChange
+    isSettingValue.current = true;
+    editorInstance.setValue(code);
+    isSettingValue.current = false;
+
+    if (position) editorInstance.setPosition(position);
+    if (selections && selections.length > 0) editorInstance.setSelections(selections);
   }, [code]);
 
   return (
@@ -90,8 +111,7 @@ export default function CodeEditor({ code, language, onChange }: CodeEditorProps
       <Editor
         height="100%"
         language={language}
-        value={code}
-        onChange={(value) => onChange(value || '')}
+        defaultValue={code}
         onMount={handleMount}
         loading={
           <div
